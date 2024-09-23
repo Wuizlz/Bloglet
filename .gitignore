@@ -1,0 +1,73 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+# Logs
+logs
+*.log
+*.out
+*.log.*
+
+# Environment Variables
+.env
+
+# Database
+*.sql
+*.sqlite
+*.pgsql
+db.sqlite3
+*.db
+
+# macOS
+.DS_Store
+
+# EJS Templates
+*.ejs~
+
+# OS generated files
+Thumbs.db
+Desktop.ini
+
+# PostgreSQL Dumps and Backup Files
+*.backup
+*.pg_dump
+
+# IDE Specific
+.vscode/
+.idea/
+
+# Coverage directory used by testing tools like Jest
+coverage/
+
+# Build output
+dist/
+build/
+out/
+
+# Temporary files and caches
+tmp/
+temp/
+.cache/
+
+# Dependency directories
+jspm_packages/
+
+# System files
+*.swp
+*.swo
+
+# Optional npm cache directory
+.npm/
+
+# ESLint cache
+.eslintcache
+
+# Parcel-Bundler cache (if used)
+.cache/
+
+# Editor backup files
+*~

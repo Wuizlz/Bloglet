@@ -1,0 +1,35 @@
+
+body {
+  background: linear-gradient(to right, #74ebd5, #acb6e5); 
+  min-height: 100vh; 
+  margin: 0; 
+}
+  
+  .centered {
+      padding-top: 200px;
+      text-align: center;
+  }
+  
+  .secret-text {
+    text-align: center;
+    font-size: 2rem;
+    color: #fff;
+    background-color: #000;
+  }
+
+  .btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+    border-radius: 20px;
+    padding: 0.75rem 1.5rem;
+    font-size: 1.2rem;
+  }
+  
+  .btn-dark {
+    background-color: #343a40;
+    border-color: #343a40;
+    border-radius: 20px;
+    padding: 0.75rem 1.5rem;
+    font-size: 1.2rem;
+  }
+  
