@@ -1,0 +1,69 @@
+<%- include('partials/header') %>
+<style>
+  /* Popup container */
+  .popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    visibility: hidden; /* Hidden by default */
+  }
+
+  /* Popup content box */
+  .popup-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    width: 300px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Close button */
+  .close-popup {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  /* Show popup */
+  .popup.show {
+    visibility: visible; /* Show the popup */
+  }
+</style>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<div class="popup" id="welcomePopup">
+  <div class="popup-content">
+    <p>Welcome Back <%= user %> !</p>
+    <button class="close-popup">Close</button>
+  </div>
+</div>
+<ul>
+  <li><a href="#home">Home</a></li>
+  <li><a href="#news">News</a></li>
+  <li><a href="#contact">Contact</a></li>
+  <li style="float:right"><a class="active" href="#about">About</a></li>
+</ul>
+</div>
+
+<script>
+  $(document).ready(function () {
+    setTimeout(function () {
+      $("#welcomePopup").addClass("show");
+    }, 1000);
+
+    $(".close-popup").click(function () {
+      $("#welcomePopup").removeClass("show");
+    });
+  });
+</script>
+<%- include('partials/footer') %>
