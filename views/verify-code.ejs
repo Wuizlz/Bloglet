@@ -1,0 +1,82 @@
+<%- include('partials/header') %>
+
+<div class="container mt-5">
+  <h1>Verify Your Email</h1>
+  <p>Please enter the verification code sent to your email address:</p>
+
+  <form id = "verifyCodeForm">
+    <input type = "hidden" name = "email" value = "<%= email %>"/>
+    <div class = "form-group">
+      <label for ="code"> Verification Code</label>
+      <input type = "text" class = "form-control" name = "code" required/>
+      <button id="resendCode" class="btn btn-dark">Submit</button>
+  </div>
+  <button id="resendCode" class="btn btn-secondary mt-3">Resend Code</button>
+  <p id="resendMessage" class="text-success mt-2"></p>
+  <p id="errorMessage" class="text-danger mt-3"></p>
+</div>
+
+<script>
+  window.addEventListener("popstate", (event) => {
+    // Redirect to feed if user navigates back
+    window.location.href = "/verify-code"; // Redirect to feed if user navigates back
+  })
+  document
+    .querySelector("#verifyCodeForm")
+    .addEventListener("submit", async (e) => {
+      // Send verification code to server
+      e.preventDefault(); // Prevent form from submitting
+
+      const formData = new FormData(e.target); // Create a FormData object from the form
+      const data = Object.fromEntries(formData); // Convert FormData to a plain object
+
+      try {
+        const response = await fetch("/verify-code", {
+          // Send verification code to server
+          method: "POST", // Send data as JSON
+          headers: { "Content-Type": "application/json" }, // Send data as JSON
+          body: JSON.stringify(data), // Send data as JSON
+        });
+
+        if (response.ok) {
+          // Redirect to feed if successful
+          const result = await response.json(); // Parse the backend response
+          window.location.href = result.redirectUrl; // Redirect to feed if successful
+        } else {
+          // Display error message if unsuccessful
+          const result = await response.json(); // Parse the backend response
+          document.querySelector("#errorMessage").textContent =
+            result.errorMessage; // Display error message if unsuccessful
+        }
+      } catch (err) {
+        // Display error message if unexpected error occurs
+        document.querySelector("#errorMessage").textContent = // Display error message if unexpected error occurs
+          "An unexpected error occurred. Please try again."; // Display error message if unexpected error occurs
+      }
+    });
+
+  document.querySelector("#resendCode").addEventListener("click", async () => { // Resend verification code
+    const email = document.querySelector("[name='email']").value; // Get email from form
+
+    try {
+      const response = await fetch("/resend-code", { // Resend verification code
+        method: "POST", // Send data as JSON
+        headers: { "Content-Type": "application/json" }, // Send data as JSON
+        body: JSON.stringify({ email }), // Send data as JSON
+      });
+
+      if (response.ok) { // Display success message if successful
+        document.querySelector("#resendMessage").textContent = // Display success message if successful
+          "A new code has been sent to your email.";
+      } else {
+        document.querySelector("#resendMessage").textContent = // Display error message if unsuccessful
+          "Failed to resend the code. Please try again.";
+      }
+    } catch (err) {
+      document.querySelector("#resendMessage").textContent = // Display error message if unexpected error occurs
+        "An unexpected error occurred.";
+    }
+  });
+</script>
+
+<%- include('partials/footer') %>
