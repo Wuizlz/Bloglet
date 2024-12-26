@@ -23,6 +23,7 @@
     "express-session": "^1.17.2",
     "jquery": "^3.7.1",
     "nodemailer": "^6.9.16",
+    "nprogress": "^0.2.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-local": "^1.0.0",

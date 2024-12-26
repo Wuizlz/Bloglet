@@ -121,25 +121,56 @@
       const popup = document.getElementById("emailErrorPopup");
       const popupMessage = document.getElementById("popupMessage");
 
-      popupMessage.textContent = result.errorMessage || "An unexpected error occurred.";
+      popupMessage.textContent = result.errorMessage || "An unexpected error occurred."; // Set the error message
       popup.classList.add("show"); // Show the popup with the error
     }
   } catch (err) {
     console.error("Error during registration:", err);
 
-    const popup = document.getElementById("emailErrorPopup");
-    const popupMessage = document.getElementById("popupMessage");
-    popupMessage.textContent = "An unexpected error occurred. Please try again.";
-    popup.classList.add("show");
+    const popup = document.getElementById("emailErrorPopup"); // Get the popup element
+    const popupMessage = document.getElementById("popupMessage"); // Get the message element
+    popupMessage.textContent = "An unexpected error occurred. Please try again."; // Set the error message
+    popup.classList.add("show"); // Show the popup
   }
 });
 
 
 
 
-document.querySelector(".close-popup").addEventListener("click", () => {
-  const popup = document.getElementById("emailErrorPopup");
+document.querySelector(".close-popup").addEventListener("click", () => { // Add an event listener to the close button
+  const popup = document.getElementById("emailErrorPopup"); // Get the popup element
   popup.classList.remove("show"); // Hide the popup by removing the 'show' class
+});
+
+// Add this script in your register.ejs file
+document.querySelector("#registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); // Prevent default form submission
+
+  const formData = new FormData(e.target); // Collect form data
+  const data = Object.fromEntries(formData); // Convert to object
+
+  try {
+    NProgress.start(); // Start the loading bar
+
+    const response = await fetch("/register", { // Send a POST request to /register
+      method: "POST", // Use POST method
+      headers: { "Content-Type": "application/json" }, // Set content type
+      body: JSON.stringify(data), // Convert data to JSON
+    });
+
+    if (response.ok) {
+      const result = await response.json(); // Parse the response
+      NProgress.done(); // Complete the loading bar
+      window.location.href = result.redirectUrl; // Redirect to Verify Email
+    } else {
+      const result = await response.json(); // Parse the error response
+      NProgress.done(); // Stop loading
+      document.querySelector("#errorMessage").textContent = result.errorMessage;
+    }
+  } catch (err) {
+    NProgress.done(); // Stop loading
+    document.querySelector("#errorMessage").textContent = "An unexpected error occurred.";
+  }
 });
 
 </script>

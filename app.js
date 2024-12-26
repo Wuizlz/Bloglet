@@ -50,6 +50,7 @@ const db = new pg.Client({
   port: process.env.PG_PORT,
 });
 db.connect(); // Connect to the PostgreSQL database
+export default db; // Export the database connection
 
 const generateVerificationCode = async (userEmail) => {
   // Generate a 6-digit verification code
@@ -169,8 +170,6 @@ app.post("/register", async (req, res) => {
   const usernameOrEmail = req.body.username_or_email; // Get the username or email
   const password = req.body.password; // Get the password
 
-  console.log("Username or Email: ", usernameOrEmail); // Log the username or email
-  console.log("Password: ", password); // Log the password
 
   // Check if the input is an email using a regex
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(usernameOrEmail); // Check if the input is an email
@@ -179,11 +178,14 @@ app.post("/register", async (req, res) => {
     // Check if the username or email already exists in the database
     const checkResult = await db.query(
       // Check if the username or email already exists
-      "SELECT * FROM users WHERE email = $1 OR username = $2", // Query to check if the username or email exists
-      [usernameOrEmail, usernameOrEmail] // Parameters for the query
+      "SELECT email FROM temp_users WHERE email = $1 UNION SELECT email FROM users WHERE email = $1", // Query to check if the username or email exists
+      [usernameOrEmail] // Parameters for the query
     );
 
+    console.log("Query Result:", checkResult.rows);
+
     if (checkResult.rows.length > 0) {
+      console.log("User already exists", usernameOrEmail); // Log the error
       // If username or email exists, return an error message
       // If username or email exists, return an error message
       return res // Return an error message if the username or email already exists
@@ -198,7 +200,7 @@ app.post("/register", async (req, res) => {
       const verificationCode = Math.floor(100000 + Math.random() * 900000); // Generate a 6-digit verification code
         const expiryTime = new Date(Date.now() + 30 * 1000); // Set expiry time to 30 seconds
         await db.query(
-            "INSERT INTO users (email, password_hash, verification_code, verification_code_expiry) VALUES ($1, $2, $3, $4) RETURNING *", // Query to insert the user with an email, password hash, verification code, and expiry time
+            "INSERT INTO temp_users (email, password_hash, verification_code, verification_code_expiry) VALUES ($1, $2, $3, $4)", // Query to insert the user with an email, password hash, verification code, and expiry time
             [usernameOrEmail, hashedPassword, verificationCode, expiryTime]
         );
 
@@ -210,15 +212,9 @@ app.post("/register", async (req, res) => {
         });
     } else {
       // Insert the user with a username and password hash
-      await db.query(
-        "INSERT INTO users (username, password_hash) VALUES ($1, $2)", // Query to insert the user with a username and password hash
-        [usernameOrEmail, hashedPassword]
-      );
+      return res.status(400).json({ errorMessage: "Only email registrations are allowed." }); // Return an error message
 
       // Inform the user that registration was successful
-      return res.status(200).json({
-        message: "Registration successful. You can log in immediately.",
-      });
     }
   } catch (err) {
     console.error("Error registering user:", err);
@@ -230,7 +226,7 @@ app.post("/resend-code", async (req, res) => {
   const { email } = req.body;
 
   try {
-    const result = await db.query("SELECT * FROM users WHERE email = $1", [ // Check if the email exists in the database
+    const result = await db.query("SELECT * FROM temp_users WHERE email = $1", [ // Check if the email exists in the database
       email,
     ]);
 
@@ -243,7 +239,7 @@ app.post("/resend-code", async (req, res) => {
 
     // Update verification code in the database
     await db.query(
-      "UPDATE users SET verification_code = $1, verification_code_expiry = $2 WHERE email = $3", // Update the verification code and expiry time
+      "UPDATE temp_users SET verification_code = $1, verification_code_expiry = $2 WHERE email = $3", // Update the verification code and expiry time
       [verificationCode, expiryTime, email]
     );
 
@@ -264,7 +260,7 @@ app.post("/verify-code", async (req, res) => {
     // Check if the code is valid and not expired
     const result = await db.query(
       // Check if the code is valid and not expired
-      "SELECT * FROM users WHERE email = $1 AND verification_code = $2 AND verification_code_expiry > NOW()", // AND verification_code_expiry > NOW() is used to check if the code is expired
+      "SELECT * FROM temp_users WHERE email = $1 AND verification_code = $2 AND verification_code_expiry > NOW()", // AND verification_code_expiry > NOW() is used to check if the code is expired
       [email, code]
     );
 
@@ -278,11 +274,21 @@ app.post("/verify-code", async (req, res) => {
 
     const user = result.rows[0]; // Get the user from the result
 
+    const existingUser = await db.query("SELECT * FROM users WHERE email = $1",
+      [email]
+    )
+
+    if(existingUser.rows.length > 0)
+    {
+      return res.status(400).json({ errorMessage: "This email has already been verified and registered." }); // Return an error if the email already exists
+    }
     // Update user as verified and clear the code
     await db.query(
-      "UPDATE users SET is_verified = true, verification_code = NULL, verification_code_expiry = NULL WHERE email = $1", // Update the user as verified and clear the code
-      [email]
+      "INSERT INTO users (email, password_hash, is_verified) VALUES ($1, $2, true)", // Query to insert the user with an email, password hash, verification code, and expiry time
+      [user.email, user.password_hash] // Parameters for the query
     );
+    
+    await db.query("DELETE FROM temp_users WHERE email = $1" , [email]); // Delete the temporary user
 
     // Automatically log the user in
     req.login(user, (err) => {
