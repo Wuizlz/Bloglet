@@ -19,6 +19,107 @@
     </div>
   </div>
 </nav>
-<!-- Styles for the popup and navbar -->
-<link rel="stylesheet" href="/css/navbar.css">
+<link rel="stylesheet" href="/css/navbar.css" />
+
+<div class="container">
+  <!-- Display Blogs -->
+  <div class="blogs-list">
+    <% if (blogs.length > 0) { %> <% blogs.forEach(blog => { %>
+    <div class="blog">
+      <h2><%= blog.title %></h2>
+      <% if (blog.image_url) { %>
+      <img src="<%= blog.image_url %>" alt="Blog Image" class="blog-image" />
+      <% } %>
+      <p><%= blog.content %></p>
+      <p>Posted on <%= blog.created_at %></p>
+
+      <!-- Like Button -->
+      <form action="/blogs/<%= blog.id %>/like" method="POST">
+        <button type="submit" class="btn btn-primary">Like</button>
+      </form>
+
+      <!-- Comment Form -->
+      <form action="/blogs/<%= blog.id %>/comments" method="POST">
+        <textarea
+          name="content"
+          placeholder="Write a comment..."
+          required
+        ></textarea>
+        <button type="submit" class="btn btn-secondary">Comment</button>
+      </form>
+
+      <a href="/blogs/<%= blog.id %>" class="btn btn-info">Read More</a>
+    </div>
+    <% }) %> <% } else { %>
+    <div class="no-blogs">
+      <h2>Be the first to Blog!</h2>
+      <button onclick="openBlogPopup()" class="btn btn-success">
+        Create Blog
+      </button>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<!-- Popup Modal -->
+<div id="blog-popup" class="popup-modal">
+  <div class="popup-content">
+    <span class="close" onclick="closeBlogPopup()">&times;</span>
+    <h2>Create a Blog</h2>
+    <form action="/blogs" method="POST" enctype="multipart/form-data">
+      <input type="text" name="title" placeholder="Blog Title" required />
+      <textarea
+        name="content"
+        placeholder="Write your blog..."
+        required
+      ></textarea>
+      <input type="file" name="image" accept="image/*" />
+      <button type="submit" class="btn btn-success">Post Blog</button>
+    </form>
+  </div>
+</div>
+
+<style>
+  /* Popup Modal Styles */
+  .popup-modal {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    justify-content: center;
+    align-items: center;
+  }
+
+  .popup-content {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    width: 400px;
+    max-width: 90%;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    text-align: center;
+  }
+
+  .popup-content .close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 20px;
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  function openBlogPopup() {
+    document.getElementById("blog-popup").style.display = "flex";
+  }
+
+  function closeBlogPopup() {
+    document.getElementById("blog-popup").style.display = "none";
+  }
+</script>
+
 <%- include('partials/footer') %>

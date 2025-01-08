@@ -1,4 +1,8 @@
 // Import required modules and packages
+import { fileURLToPath } from "url";
+import fs from "fs";
+import path from "path";
+import multer from "multer";
 import { sendVerificationEmail } from "./mailer.js";
 import crypto from "crypto";
 import axios from "axios";
@@ -11,6 +15,7 @@ import { Strategy } from "passport-local"; // Local strategy for username/passwo
 import session from "express-session";
 import env from "dotenv";
 import GoogleStrategy from "passport-google-oauth20"; // Google OAuth strategy
+import morgan from "morgan";
 
 // Initialize Express app
 const app = express();
@@ -19,29 +24,20 @@ const saltRounds = 10; // Salt rounds for bcrypt
 env.config(); // Load environment variables
 
 // Set up session management
+
 app.use(
   session({
-    secret: process.env.SESSION_SECRET, // Secret for session encryption
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
     cookie: {
-      maxAge: 1000 * 60 * 60 * 24, // 1 day cookie expiration
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
+      secure: process.env.NODE_ENV === "production", // Use HTTPS in production
+      httpOnly: true, // Prevent client-side script access
     },
   })
 );
 
-app.use(express.json()); // Middleware for parsing JSON data
-// Middleware for parsing URL-encoded data
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Serve static files from the "public" directory
-app.use(express.static("public"));
-
-// Initialize Passport for handling authentication
-app.use(passport.initialize());
-app.use(passport.session()); // Use sessions with Passport
-
-// Set up PostgreSQL connection
 const db = new pg.Client({
   user: process.env.PG_USER,
   host: process.env.PG_HOST,
@@ -50,7 +46,214 @@ const db = new pg.Client({
   port: process.env.PG_PORT,
 });
 db.connect(); // Connect to the PostgreSQL database
-export default db; // Export the database connection
+
+app.use(morgan("dev"));
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, "uploads");
+    // Ensure the uploads directory exists
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB file size limit
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed!"), false);
+    }
+    cb(null, true);
+  },
+});
+
+app.use(express.json()); // Middleware for parsing JSON data
+// Middleware for parsing URL-encoded data
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).send("File upload error: " + err.message);
+  } else if (err) {
+    return res.status(500).send("Server error: " + err.message);
+  }
+  next();
+});
+
+app.use((req, res, next) => {
+  console.log("Logged-in User:", req.user); // This logs req.user for every request
+  next(); // Pass to the next middleware
+});
+
+// Serve static files from the "public" directory
+app.use(express.static("public"));
+
+// Initialize Passport for handling authentication
+app.use(passport.initialize());
+app.use(passport.session()); // Use sessions with Passport
+
+app.set("view engine", "ejs");
+app.set("views", "./views"); // Assuming your views are stored in a folder named "views"
+
+// Set up PostgreSQL connection
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads"))); // Serve uploaded files
+class Blog {
+  constructor({
+    id,
+    user_id,
+    title,
+    content,
+    image_url,
+    created_at,
+    updated_at,
+  }) {
+    this.id = id;
+    this.user_id = user_id;
+    this.title = title;
+    this.content = content;
+    this.image_url = image_url;
+    this.created_at = created_at;
+    this.updated_at = updated_at;
+  }
+
+  static async getAll() {
+    const result = await db.query(
+      "SELECT * FROM blogs ORDER BY created_at DESC"
+    );
+    return result.rows.map((row) => new Blog(row));
+  }
+
+  static async getById(id) {
+    try {
+      const result = await db.query("SELECT * FROM blogs WHERE id = $1", [id]);
+      return result.rows[0] ? new Blog(result.rows[0]) : null;
+    } catch (err) {
+      console.error("Database error:", err);
+      throw new Error("Failed to fetch blog by ID.");
+    }
+  }
+
+  static async create({ user_id, title, content, image_url }) {
+    const result = await db.query(
+      "INSERT INTO blogs (user_id, title, content, image_url) VALUES ($1, $2, $3, $4) RETURNING *",
+      [user_id, title, content, image_url]
+    );
+    return new Blog(result.rows[0]);
+  }
+
+  static async update(id, { title, content }) {
+    const result = await db.query(
+      "UPDATE blogs SET title = $1, content = $2, updated_at = now() WHERE id = $3 RETURNING *",
+      [title, content, id]
+    );
+    return new Blog(result.rows[0]);
+  }
+
+  static async delete(id) {
+    await db.query("DELETE FROM blogs WHERE id = $1", [id]);
+  }
+}
+
+export const getAllBlogs = async (req, res) => {
+  try {
+    const blogs = await Blog.getAll();
+    res.render("feed", { blogs: blogs.length ? blogs : [] }); // Pass blogs to the view
+  } catch (error) {
+    console.error("Error fetching blogs:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
+
+export const createBlog = async (req, res) => {
+  try {
+    const { title, content } = req.body;
+
+    // Validate input
+    if (!title || !content) {
+      console.error("Missing title or content:", { title, content });
+      return res.status(400).send("Title and content are required.");
+    }
+
+    const imageUrl = req.file?.filename
+      ? `/uploads/${req.file.filename}`
+      : null;
+    console.log("Image URL being saved:", imageUrl);
+    const userId = req.user.id; // Assuming user ID is in the session
+    console.log("User ID:", userId);
+
+    await Blog.create({ user_id: userId, title, content, image_url: imageUrl });
+    res.redirect("/blogs");
+  } catch (error) {
+    console.error("Error creating blog:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
+
+export const getBlogById = async (req, res) => {
+  try {
+    const blog = await Blog.getById(req.params.id);
+    if (!blog) return res.status(404).send("Blog not found");
+    res.render("blogDetails", { blog });
+  } catch (error) {
+    console.error("Error fetching blog:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
+
+export const updateBlog = async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    const blogId = req.params.id;
+    await Blog.update(blogId, { title, content });
+    res.redirect(`/blogs/${blogId}`);
+  } catch (error) {
+    console.error("Error updating blog:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
+
+export const deleteBlog = async (req, res) => {
+  try {
+    await Blog.delete(req.params.id);
+    res.redirect("/blogs");
+  } catch (error) {
+    console.error("Error deleting blog:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
+
+export const likeBlog = async (req, res) => {
+  try {
+    const blogId = req.params.id;
+    await Blog.incrementLikes(blogId);
+    res.redirect("/blogs");
+  } catch (error) {
+    console.error("Error liking blog:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
+
+export const addComment = async (req, res) => {
+  try {
+    const blogId = req.params.id;
+    const { content } = req.body;
+    await Blog.addComment(blogId, content, req.user.id); // Assuming user ID is in the session
+    res.redirect(`/blogs/${blogId}`);
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
 
 const generateVerificationCode = async (userEmail) => {
   // Generate a 6-digit verification code
@@ -66,26 +269,23 @@ const generateVerificationCode = async (userEmail) => {
   return verificationCode; // Return the verification code
 };
 
-const verifyEmailWithHunter = async (email) => {
-  // Verify an email using the Hunter API
-  const apiKey = process.env.HUNTER_API_KEY; // Hunter API key
-  const url = `https://api.hunter.io/v2/email-verifier?email=${email}&api_key=${apiKey}`; // Hunter API URL
-  try {
-    const respone = await axios.get(url); // Send a GET request to the Hunter API
-    const status = response.data.data.status; // Get the status from the response
+app.get("/blogs", getAllBlogs); // Display all blogs
+app.post(
+  "/blogs",
+  upload.single("image"), // Middleware for single file upload with "image" field
+  async (req, res, next) => {
+    console.log("Request Body:", req.body); // Log the form data
+    console.log("Uploaded File:", req.file); // Log uploaded file details
+    next(); // Pass control to the `createBlog` function
+  },
+  createBlog
+);
+app.get("/blogs/:id", getBlogById); // Get a specific blog by ID
+app.put("/blogs/:id", updateBlog); // Update a blog
+app.delete("/blogs/:id", deleteBlog); // Delete a blog
+app.post("/blogs/:id/like", likeBlog); // Like a blog
+app.post("/blogs/:id/comments", addComment); // Add a comment to a blog
 
-    if (status === "valid") {
-      // Check if the email is valid
-      return true; // Email is valid
-    } else {
-      return false; // Email is invalid
-    }
-  } catch (error) {
-    // Catch any errors
-    console.error("Error verifying email:", error); // Log the error
-    return false; // Error verifying email
-  }
-};
 // Home route
 app.get("/", (req, res) => {
   res.render("home.ejs"); // Render the home page
@@ -134,9 +334,11 @@ app.get("/feed", async (req, res) => {
       ]);
 
       if (result.rows.length > 0) {
-        res.render("feed.ejs", {
-          user: result.rows[0].username || result.rows[0].email, // Pass the user to the feed
-        });
+        const blogs = await Blog.getAll(); // Get all blogs
+
+        res.render("feed.ejs", { user: result.rows[0], blogs });
+      } else {
+        res.status(404).send("User not found");
       }
     } catch (err) {
       console.log(err);
@@ -170,7 +372,6 @@ app.post("/register", async (req, res) => {
   const usernameOrEmail = req.body.username_or_email; // Get the username or email
   const password = req.body.password; // Get the password
 
-
   // Check if the input is an email using a regex
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(usernameOrEmail); // Check if the input is an email
 
@@ -198,21 +399,26 @@ app.post("/register", async (req, res) => {
 
     if (isEmail) {
       const verificationCode = Math.floor(100000 + Math.random() * 900000); // Generate a 6-digit verification code
-        const expiryTime = new Date(Date.now() + 30 * 1000); // Set expiry time to 30 seconds
-        await db.query(
-            "INSERT INTO temp_users (email, password_hash, verification_code, verification_code_expiry) VALUES ($1, $2, $3, $4)", // Query to insert the user with an email, password hash, verification code, and expiry time
-            [usernameOrEmail, hashedPassword, verificationCode, expiryTime]
-        );
+      const expiryTime = new Date(Date.now() + 30 * 1000); // Set expiry time to 30 seconds
+      await db.query(
+        "INSERT INTO temp_users (email, password_hash, verification_code, verification_code_expiry) VALUES ($1, $2, $3, $4)", // Query to insert the user with an email, password hash, verification code, and expiry time
+        [usernameOrEmail, hashedPassword, verificationCode, expiryTime]
+      );
 
-        await sendVerificationEmail(usernameOrEmail, verificationCode); // Send the verification email
+      await sendVerificationEmail(usernameOrEmail, verificationCode); // Send the verification email
 
-        return res.status(200).json({ // Return a success message
-            message: "Verification code sent. Please verify your email to log in.", // Inform the user that a verification code has been sent
-            redirectUrl: `/verify-code?email=${encodeURIComponent(usernameOrEmail)}`, // Update this to redirect to verification screen
-        });
+      return res.status(200).json({
+        // Return a success message
+        message: "Verification code sent. Please verify your email to log in.", // Inform the user that a verification code has been sent
+        redirectUrl: `/verify-code?email=${encodeURIComponent(
+          usernameOrEmail
+        )}`, // Update this to redirect to verification screen
+      });
     } else {
       // Insert the user with a username and password hash
-      return res.status(400).json({ errorMessage: "Only email registrations are allowed." }); // Return an error message
+      return res
+        .status(400)
+        .json({ errorMessage: "Only email registrations are allowed." }); // Return an error message
 
       // Inform the user that registration was successful
     }
@@ -226,7 +432,8 @@ app.post("/resend-code", async (req, res) => {
   const { email } = req.body;
 
   try {
-    const result = await db.query("SELECT * FROM temp_users WHERE email = $1", [ // Check if the email exists in the database
+    const result = await db.query("SELECT * FROM temp_users WHERE email = $1", [
+      // Check if the email exists in the database
       email,
     ]);
 
@@ -274,37 +481,44 @@ app.post("/verify-code", async (req, res) => {
 
     const user = result.rows[0]; // Get the user from the result
 
-    const existingUser = await db.query("SELECT * FROM users WHERE email = $1",
+    const existingUser = await db.query(
+      "SELECT * FROM users WHERE email = $1",
       [email]
-    )
+    );
 
-    if(existingUser.rows.length > 0)
-    {
-      return res.status(400).json({ errorMessage: "This email has already been verified and registered." }); // Return an error if the email already exists
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({
+        errorMessage: "This email has already been verified and registered.",
+      }); // Return an error if the email already exists
     }
     // Update user as verified and clear the code
     await db.query(
       "INSERT INTO users (email, password_hash, is_verified) VALUES ($1, $2, true)", // Query to insert the user with an email, password hash, verification code, and expiry time
       [user.email, user.password_hash] // Parameters for the query
     );
-    
-    await db.query("DELETE FROM temp_users WHERE email = $1" , [email]); // Delete the temporary user
 
-    // Automatically log the user in
-    req.login(user, (err) => {
-      // Log the user in
+    await db.query("DELETE FROM temp_users WHERE email = $1", [email]); // Delete the temp_user
+
+    // Fetch the verified user from users table
+    const verifiedUser = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    // Automatically log the user in using the `users` table data
+    req.login(verifiedUser.rows[0], (err) => {
       if (err) {
-        console.error("Error logging in user after verification:", err); // Log the error
-        return res.status(500).json({ errorMessage: "Failed to log in." }); // Return an error if the user cannot be logged in
+        console.error("Error logging in user after verification:", err);
+        return res.status(500).json({ errorMessage: "Failed to log in." });
       }
 
-      // Send success response with redirect URL
-      return res
-        .status(200)
-        .json({ message: "Verification successful!", redirectUrl: "/feed" });
+      return res.status(200).json({
+        message: "Verification successful!",
+        redirectUrl: "/feed",
+      });
     });
   } catch (err) {
-    console.error("Error verifying email:", err);
+    console.error("Error verifying code:", err);
     res.status(500).json({ errorMessage: "Internal server error" });
   }
 });
@@ -433,7 +647,6 @@ passport.use(
   )
 );
 
-// Serialize user information into session
 passport.serializeUser((user, cb) => {
   cb(null, user);
 });
