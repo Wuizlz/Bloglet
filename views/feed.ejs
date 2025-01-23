@@ -1,4 +1,5 @@
 <%- include('partials/header') %>
+<link rel="stylesheet" href="/css/navbar.css" />
 
 <!-- Navbar -->
 <nav class="navbar">
@@ -7,7 +8,11 @@
     <ul class="navbar-menu">
       <li><a href="/feed">Feed</a></li>
       <li><a href="/profile">Profile</a></li>
-      <li><a href="/settings">Settings</a></li>
+      <li>
+        <button onclick="openBlogPopup()" class="btn btn-create">
+          Create Blog
+        </button>
+      </li>
     </ul>
     <div class="navbar-right">
       <a href="/logout" class="btn btn-logout">Logout</a>
@@ -19,7 +24,6 @@
     </div>
   </div>
 </nav>
-<link rel="stylesheet" href="/css/navbar.css" />
 
 <div class="container">
   <!-- Display Blogs -->
@@ -28,17 +32,36 @@
     <div class="blog">
       <h2><%= blog.title %></h2>
       <% if (blog.image_url) { %>
+
+      <div class="interaction-user">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          fill="currentColor"
+          class="bi bi-arrow-up"
+          viewBox="0 0 16 16"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5"
+          />
+        </svg>
+        <span id="like-count-<%= blog.id %>">0</span> 
+      </div>
       <img src="<%= blog.image_url %>" alt="Blog Image" class="blog-image" />
       <% } %>
+      <form class="form_1" method="POST" onsubmit="return false;">
+        <button
+          type="button"
+          class="btn btn-primary like-button"
+          data-blog-id="<%= blog.id %>"
+        >
+          Like
+        </button>
+      </form>
       <p><%= blog.content %></p>
       <p>Posted on <%= blog.created_at %></p>
-
-      <!-- Like Button -->
-      <form action="/blogs/<%= blog.id %>/like" method="POST">
-        <button type="submit" class="btn btn-primary">Like</button>
-      </form>
-
-      <!-- Comment Form -->
       <form action="/blogs/<%= blog.id %>/comments" method="POST">
         <textarea
           name="content"
@@ -47,7 +70,6 @@
         ></textarea>
         <button type="submit" class="btn btn-secondary">Comment</button>
       </form>
-
       <a href="/blogs/<%= blog.id %>" class="btn btn-info">Read More</a>
     </div>
     <% }) %> <% } else { %>
@@ -79,39 +101,6 @@
   </div>
 </div>
 
-<style>
-  /* Popup Modal Styles */
-  .popup-modal {
-    display: none; /* Hidden by default */
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
-    justify-content: center;
-    align-items: center;
-  }
-
-  .popup-content {
-    background: #fff;
-    padding: 20px;
-    border-radius: 8px;
-    width: 400px;
-    max-width: 90%;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    text-align: center;
-  }
-
-  .popup-content .close {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    font-size: 20px;
-    cursor: pointer;
-  }
-</style>
-
 <script>
   function openBlogPopup() {
     document.getElementById("blog-popup").style.display = "flex";
@@ -120,6 +109,45 @@
   function closeBlogPopup() {
     document.getElementById("blog-popup").style.display = "none";
   }
+  document.addEventListener("DOMContentLoaded", () => {
+    const likeButtons = document.querySelectorAll(".like-button");
+
+    likeButtons.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const blogId = button.getAttribute("data-blog-id");
+        const likeCountSpan = document.getElementById(`like-count-${blogId}`);
+
+        try {
+          const response = await fetch(`/blogs/${blogId}/like`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to toggle like");
+          }
+
+          const result = await response.json();
+
+          // Update like count
+          likeCountSpan.textContent = result.likeCount;
+
+          // Toggle button text and style
+          if (result.liked) {
+            button.textContent = "Unlike";
+            button.classList.add("liked");
+          } else {
+            button.textContent = "Like";
+            button.classList.remove("liked");
+          }
+        } catch (error) {
+          console.error("Error toggling like:", error);
+        }
+      });
+    });
+  });
 </script>
+
+<script src=" /hamburger.js"></script>
 
 <%- include('partials/footer') %>

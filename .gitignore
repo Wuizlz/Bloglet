@@ -49,6 +49,7 @@ build/
 out/
 
 # Temporary files and caches
+uploads/
 tmp/
 temp/
 .cache/

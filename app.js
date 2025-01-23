@@ -162,19 +162,53 @@ class Blog {
   static async delete(id) {
     await db.query("DELETE FROM blogs WHERE id = $1", [id]);
   }
+
+  static async toggleLike(user_id, blog_id) {
+    try {
+      console.log("Toggling like for user", user_id, "on blog", blog_id);
+      const result = await db.query(
+        "SELECT * FROM likes WHERE user_id = $1 AND blog_id = $2",
+        [user_id, blog_id]
+      );
+
+      if (result.rows.length > 0) {
+        await db.query("DELETE FROM likes WHERE user_id = $1 AND blog_id = $2", [
+          user_id,
+          blog_id,
+        ]);
+      } else {
+        await db.query("INSERT INTO likes (user_id, blog_id) VALUES ($1, $2)", [
+          user_id,
+          blog_id,
+        ]);
+      }
+
+      const likeCountResult = await db.query(
+        "SELECT COUNT(*) AS like_count FROM likes WHERE blog_id = $1",
+        [blog_id]
+      );
+    return {
+      likeCount: parseInt(likeCountResult.rows[0].like_count, 10),
+      liked: result.rows.length === 0,
+    };
+    } catch (err) {
+      console.error("Error toggling like", err);
+      res.status(500).send("Internal Server Error");
+    }
+  }
 }
 
-export const getAllBlogs = async (req, res) => {
+const getAllBlogs = async (req, res) => {
   try {
     const blogs = await Blog.getAll();
     res.render("feed", { blogs: blogs.length ? blogs : [] }); // Pass blogs to the view
   } catch (error) {
     console.error("Error fetching blogs:", error);
-    res.status(500).send("Internal Server Error");
+    throw new Error("Internal server error");
   }
 };
 
-export const createBlog = async (req, res) => {
+const createBlog = async (req, res) => {
   try {
     const { title, content } = req.body;
 
@@ -199,7 +233,7 @@ export const createBlog = async (req, res) => {
   }
 };
 
-export const getBlogById = async (req, res) => {
+const getBlogById = async (req, res) => {
   try {
     const blog = await Blog.getById(req.params.id);
     if (!blog) return res.status(404).send("Blog not found");
@@ -210,7 +244,7 @@ export const getBlogById = async (req, res) => {
   }
 };
 
-export const updateBlog = async (req, res) => {
+const updateBlog = async (req, res) => {
   try {
     const { title, content } = req.body;
     const blogId = req.params.id;
@@ -222,7 +256,7 @@ export const updateBlog = async (req, res) => {
   }
 };
 
-export const deleteBlog = async (req, res) => {
+const deleteBlog = async (req, res) => {
   try {
     await Blog.delete(req.params.id);
     res.redirect("/blogs");
@@ -232,14 +266,25 @@ export const deleteBlog = async (req, res) => {
   }
 };
 
-export const likeBlog = async (req, res) => {
+const toggleLikeBlog = async (req, res) => {
   try {
-    const blogId = req.params.id;
-    await Blog.incrementLikes(blogId);
-    res.redirect("/blogs");
+      console.log("Authenticated User:", req.user); // Debugging user authentication
+
+      if (!req.user) {
+          return res.status(401).json({ errorMessage: "User not authenticated" });
+      }
+
+      const user_id = req.user.id; // Correctly fetch user_id from req.user
+      const blog_id = parseInt(req.params.id, 10); // Correctly fetch blog_id from route parameter
+
+      console.log("User ID:", user_id);
+      console.log("Blog ID:", blog_id);
+
+      const result = await Blog.toggleLike(user_id, blog_id); // Pass in correct order
+      res.status(200).json(result);
   } catch (error) {
-    console.error("Error liking blog:", error);
-    res.status(500).send("Internal Server Error");
+      console.error("Error toggling like:", error);
+      res.status(500).json({ errorMessage: "Internal server error" });
   }
 };
 
@@ -283,7 +328,7 @@ app.post(
 app.get("/blogs/:id", getBlogById); // Get a specific blog by ID
 app.put("/blogs/:id", updateBlog); // Update a blog
 app.delete("/blogs/:id", deleteBlog); // Delete a blog
-app.post("/blogs/:id/like", likeBlog); // Like a blog
+app.post("/blogs/:id/like", toggleLikeBlog); // Like a blog
 app.post("/blogs/:id/comments", addComment); // Add a comment to a blog
 
 // Home route

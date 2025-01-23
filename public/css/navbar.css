@@ -86,7 +86,7 @@
   /* Mobile View (For smaller screens) */
   @media screen and (max-width: 768px) {
     .navbar-menu {
-      display: none;
+      display: none; /* Initially hidden */
       flex-direction: column;
       gap: 10px;
       background-color: #333;
@@ -97,8 +97,18 @@
       text-align: center;
     }
   
+    .navbar-right
+    {
+      display: none;
+    }
+
     .navbar-menu.active {
-      display: flex;
+      display: flex; /* Show the navbar menu */
+    }
+
+    .navbar-menu .btn-logout {
+      display: block; /* Show logout button inside menu */
+      margin-top: 10px;
     }
   
     .navbar-toggle {
@@ -185,9 +195,16 @@
 }
 
 .blog img {
-  max-width: 100%;
+  max-width: 500px;
+  max-height: 500px; /* Set a maximum height */
+  width: auto;
+  height: auto;
   border-radius: 5px;
   margin-bottom: 10px;
+  display: block; /* Center the image */
+  margin-left: auto;
+  margin-right: auto;
+
 }
 
 .blog .btn {
@@ -204,6 +221,8 @@
 .blog .btn-primary {
   background-color: #007bff;
   border: none;
+  
+  
 }
 
 .blog .btn-primary:hover {
@@ -224,9 +243,24 @@
   border: none;
 }
 
+.blog .form_1
+{
+  display: flex;
+  justify-content: center;
+}
+
 .blog .btn-info:hover {
   background-color: #138496;
 }
+
+.blog h2 {
+  color: #333;
+  font-size: 20px;
+  margin-bottom: 10px;
+  text-align: center; /* Center the blog title */
+}
+
+
 
 /* No Blogs Message */
 .no-blogs {
@@ -291,4 +325,53 @@ textarea:focus {
   .blogs-list {
     gap: 15px;
   }
+}
+.popup-modal {
+  display: none; /* Hidden by default */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Ensure it's above other elements */
+}
+
+.popup-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  position: relative; /* For the close button */
+}
+
+.popup-content .close {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 20px;
+  cursor: pointer;
+  color: #333;
+  font-weight: bold;
+}
+
+.popup-content .close:hover {
+  color: red;
+}
+
+.btn-create
+{
+  background-color: #28a745;
+  color: rgb(255, 255, 255);
+  border: none;
+  padding: 10px 15px;
+  font-size: 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
 }
